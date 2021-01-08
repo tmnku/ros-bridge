@@ -533,6 +533,37 @@ def main(args=None):
                     carla_world = carla_client.load_world(parameters["town"])
             carla_world.tick()
 
+        # spawn traffic
+        carla_bridge.loginfo('spawning vehicles...')
+        SpawnActor = carla.command.SpawnActor
+        SetAutopilot = carla.command.SetAutopilot
+        FutureActor = carla.command.FutureActor
+
+        tm = carla_client.get_trafficmanager()
+        tm.set_synchronous_mode(True)
+        tm.set_hybrid_physics_mode(True)
+        blueprint_library = carla_world.get_blueprint_library()
+        worldmap = carla_world.get_map()
+        batch = []
+        vehicles_list = []
+        ####################################################
+        # specify spawn location in ros coordinates here !!!
+        ####################################################
+        vehicle_descriptions = [
+            {'type': 'model3', 'locrot': (20.0, -207.5, 0.3, 0.0, 0.0, 0.15)},
+        ]
+        for vehicle_description in vehicle_descriptions:
+            # spawn = worldmap.get_spawn_points()[i]
+            blueprint = random.choice(blueprint_library.filter(vehicle_description['type']))
+            locrot = vehicle_description['locrot']
+            spawn = carla.Transform(carla.Location(locrot[0], -locrot[1], locrot[2]), carla.Rotation(locrot[3], locrot[4], -locrot[5]))
+            batch.append(SpawnActor(blueprint, spawn).then(SetAutopilot(FutureActor, True, tm.get_port())))
+        for response in carla_client.apply_batch_sync(batch, True):
+            if response.error:
+                carla_bridge.loginfo(response.error)
+            else:
+                vehicles_list.append(response.actor_id)
+
         carla_bridge.initialize_bridge(carla_client.get_world(), parameters)
 
         if ROS_VERSION == 1:
